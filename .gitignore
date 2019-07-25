@@ -111,4 +111,5 @@ venv.bak/
 *.v
 
 # other data
+training_data/
 *.csv
