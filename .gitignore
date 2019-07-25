@@ -104,3 +104,11 @@ venv.bak/
 .mypy_cache/
 
 .idea
+
+# interfile
+*.ahv
+*.hv
+*.v
+
+# other data
+*.csv
