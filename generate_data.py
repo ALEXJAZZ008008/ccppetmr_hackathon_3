@@ -11,21 +11,25 @@ from generate_image import generate_image
 
 
 def transform_image(fixed_im_name, moving_im_name):
+    """
+    Randomly transform 2D image by translation or rotation.
+    fixed_im_name   =
+    """
 
     trans_file = 'temp_trans_file.txt'
 
-    angle = random.uniform(-1,1)
-    tr_x = random.uniform(-1,1)
-    tr_y = random.uniform(-1,1)
+    angle = random.uniform(0,1)
+    tr_x = random.uniform(0,1)
+    tr_y = random.uniform(0,1)
 
-    theta = angle * (math.pi / 4)
+    theta = (angle-0.5) * (math.pi / 2)
 
     #print('angle: {}\ntr_x: {}\ntr_y: {}\ntheta: {}'.format(angle, tr_x, tr_y,
     #                                                        theta))
 
     transform = Reg.AffineTransformation(np.array(
-        [[math.cos(theta),-math.sin(theta),0,tr_x*25],
-         [math.sin(theta),math.cos(theta),0,tr_y*25],
+        [[math.cos(theta),-math.sin(theta),0,(tr_x-0.5)*50],
+         [math.sin(theta),math.cos(theta),0,(tr_y-0.5)*50],
          [0,0,1,0],
          [0,0,0,1]]))
 
@@ -47,7 +51,7 @@ def transform_image(fixed_im_name, moving_im_name):
 
     os.remove(trans_file)
 
-    return [tr_x, tr_y, angle]
+    return [1-tr_x, 11--tr_y, 1-angle]
 
 
 def generate_data(initial_image, num_images, num_tranforms):
