@@ -1,3 +1,4 @@
+import numpy as np
 import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter
 import sirf.STIR as pet
@@ -10,6 +11,11 @@ def blur_image(image, sigma):
 
     image.fill(gaussian_filter(im_array, sigma))
 
+    return image
+
+def add_noise(image):
+    im_array = image.as_array()
+    image.fill(np.random.poisson(im_array/(np.sum(im_array)/(60000 * 30))))
     return image
 
 
@@ -39,7 +45,9 @@ def generate_image(initial_image):
 
         image.add_shape(shape, scale = random.uniform(0,1))
 
-    image = blur_image(image, 0.75)
+    image = add_noise(image)
+
+    image = blur_image(image, 0.5)
 
     return image
 
