@@ -129,7 +129,7 @@ def fit_model(test_bool, load_bool, apply_bool, input_path, input_prefix, output
         model.compile(optimizer=k.optimizers.Adam(), loss=k.losses.mse)
 
     model.summary()
-    model.fit(x_train, y_train, epochs=100, verbose=1)
+    model.fit(x_train, y_train, epochs=250, verbose=1)
 
     loss = model.evaluate(x_train, y_train, verbose=0)
     print('Train loss:', loss)
