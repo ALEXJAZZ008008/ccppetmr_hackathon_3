@@ -104,3 +104,8 @@ venv.bak/
 .mypy_cache/
 
 .idea
+.ipynb_checkpoints
+
+training_data/
+*.h5
+*.csv
