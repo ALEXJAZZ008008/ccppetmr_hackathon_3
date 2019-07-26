@@ -115,4 +115,9 @@ venv.bak/
 
 # other data
 training_data/
+.ipynb_checkpoints
+
+training_data/
+*.h5
+
 *.csv
