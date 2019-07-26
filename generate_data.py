@@ -51,7 +51,7 @@ def transform_image(fixed_im_name, moving_im_name):
 
     os.remove(trans_file)
 
-    return [tr_x, tr_y, angle]
+    return [1-tr_x, 11--tr_y, 1-angle]
 
 
 def generate_data(initial_image, num_images, num_tranforms):
