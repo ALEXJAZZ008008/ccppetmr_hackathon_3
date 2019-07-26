@@ -61,9 +61,9 @@ def get_x_train(input_path, input_prefix):
 
     for i in range(len(x_train_moving_fixed)):
         for j in range(len(x_train_moving_fixed[i])):
-            x_train.append(np.asarray([x_train_fixed[i], x_train_moving_fixed[i][j]]))
+            x_train.append(np.asarray([x_train_fixed[i], x_train_moving_fixed[i][j]]).T)
 
-    return np.nan_to_num(np.asarray(x_train).T).astype(np.float)
+    return np.nan_to_num(np.asarray(x_train)).astype(np.float)
 
 
 def get_y_train(input_path):
@@ -102,16 +102,22 @@ def fit_model(test_bool, load_bool, apply_bool, input_path, input_prefix, output
     else:
         input_x = k.layers.Input(x_train.shape[1:])
 
-        # 3 x 3 x (previous num channels = 2) kernels (32 times => 32 output channels)
+        # 5 x 5 x (previous num channels = 2) kernels (32 times => 32 output channels)
         # padding='same' for zero padding
         x = k.layers.Conv2D(32, 3, activation=k.activations.relu, padding='same')(input_x)
         # 3 x 3 x (previous num channels = 32) kernels (64 times)
         x = k.layers.Conv2D(64, 3, activation=k.activations.relu, padding='same')(x)
+        x = k.layers.Dropout(0.20)(x)  # discard 20% outputs
         x = k.layers.MaxPooling2D(2)(x)  # downsample by factor of 2, using "maximum" interpolation
-        x = k.layers.Dropout(0.25)(x)  # discard 25% outputs
         x = k.layers.Flatten()(x)  # vectorise
         x = k.layers.Dense(128, activation=k.activations.relu)(x)  # traditional neural layer with 128 outputs
-        x = k.layers.Dropout(0.5)(x)
+        x = k.layers.Dropout(0.20)(x)  # discard 20% outputs
+        x = k.layers.Dense(64, activation=k.activations.relu)(x)  # traditional neural layer with 64 outputs
+        x = k.layers.Dropout(0.20)(x)  # discard 20% outputs
+        x = k.layers.Dense(32, activation=k.activations.relu)(x)  # traditional neural layer with 32 outputs
+        x = k.layers.Dropout(0.20)(x)  # discard 20% outputs
+        x = k.layers.Dense(96, activation=k.activations.relu)(x)  # traditional neural layer with 96 outputs
+        x = k.layers.Dropout(0.20)(x)  # discard 20% outputs
         x = k.layers.Dense(3, activation=k.activations.tanh)(x)  # 3 outputs
 
         model = k.Model(input_x, x)
@@ -123,7 +129,7 @@ def fit_model(test_bool, load_bool, apply_bool, input_path, input_prefix, output
         model.compile(optimizer=k.optimizers.Adam(), loss=k.losses.mse)
 
     model.summary()
-    model.fit(x_train, y_train, epochs=1000, verbose=1)
+    model.fit(x_train, y_train, epochs=100, verbose=1)
 
     loss = model.evaluate(x_train, y_train, verbose=0)
     print('Train loss:', loss)
@@ -134,8 +140,8 @@ def fit_model(test_bool, load_bool, apply_bool, input_path, input_prefix, output
         output = model.predict(x_train)
         difference = y_train - output
 
-        print("Max difference: " + difference.max())
-        print("Mean difference: " + difference.mean())
+        print("Max difference: " + str(difference.max()))
+        print("Mean difference: " + str(difference.mean()))
 
         with open(output_path + "/output_transforms.csv", 'w') as file:
             for i in range(len(output)):
