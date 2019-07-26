@@ -104,8 +104,20 @@ venv.bak/
 .mypy_cache/
 
 .idea
+
+# nifti
+*.nii
+
+# interfile
+*.ahv
+*.hv
+*.v
+
+# other data
+training_data/
 .ipynb_checkpoints
 
 training_data/
 *.h5
+
 *.csv

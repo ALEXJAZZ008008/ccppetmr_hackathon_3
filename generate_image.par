@@ -1,0 +1,38 @@
+generate_image Parameters :=
+; a sample file on how to use generate_image
+
+output filename:=blank_image
+; optional keywords to specify the output file format
+
+output file format type := ITK
+ITK Output File Format Parameters:=
+number format := float
+number_of_bytes_per_pixel:=4
+default extension:=.nii
+End ITK Output File Format Parameters:=
+
+; optional keywords to set image timing
+image duration (sec) := -1 ; defaults to -1 (i.e. unknown)
+image relative start time (sec) := 0 ; defaults to zero
+
+X output image size (in pixels) := 100
+Y output image size (in pixels) := 100
+Z output image size (in pixels) := 1
+X voxel size (in mm) := 1
+Y voxel size (in mm) := 1
+Z voxel size (in mm) := 1
+
+; parameters that determine subsampling of border voxels
+; to obtain smooth edges
+; setting these to 1 will just check if the centre of the voxel is in or out
+; default to 5
+; Z number of samples to take per voxel := 5
+; Y number of samples to take per voxel := 5
+; X number of samples to take per voxel := 5
+
+; now follows a list of shapes and their values
+; each will be added to the image (so values accumulate)
+; see Shape3D hierarchy for possibly shapes
+
+
+END:=
