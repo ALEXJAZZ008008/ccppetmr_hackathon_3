@@ -1,7 +1,16 @@
 import matplotlib.pyplot as plt
+from scipy.ndimage import gaussian_filter
 import sirf.STIR as pet
 import sirf.Reg as Reg
 import random
+
+
+def blur_image(image, sigma):
+    im_array = image.as_array()
+
+    image.fill(gaussian_filter(im_array, sigma))
+
+    return image
 
 
 def generate_image(initial_image):
@@ -29,6 +38,8 @@ def generate_image(initial_image):
                                          image_shape[2]/4 - radii[0])))
 
         image.add_shape(shape, scale = random.uniform(0,1))
+
+    image = blur_image(image, 0.75)
 
     return image
 
