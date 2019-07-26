@@ -1,0 +1,7 @@
+output file format parameters:=
+output file format type := ITK
+ITK Output File Format Parameters:=
+  ; use Nifti as output (could also use .mhdr, .nhdr etc)
+  default extension:=.nii
+End ITK Output File Format Parameters:=
+END:=
