@@ -166,5 +166,5 @@ def test_model(test_bool, data_input_path, data_input_prefix, model_input_path, 
         for i in range(len(output)):
             file.write(str(output[i][0]) + ',' + str(output[i][1]) + ',' + str(output[i][0]) + '\n')
 
-
-fit_model(False, False, True, "../training_data/", ".nii", "../results/")
+if __name__ == "__main__":
+    fit_model(False, False, True, "../training_data/", ".nii", "../results/")
