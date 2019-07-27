@@ -1,16 +1,16 @@
 import subprocess
 import os
+import shutil
 import math
 import random
 import numpy as np
-import matplotlib.pyplot as plt
-import sirf.STIR as pet
+import sirf.STIR as PET
 import sirf.Reg as Reg
 
 from generate_image import generate_image
 
 
-def transform_image(fixed_im_name, moving_im_name):
+def transform_image(fixed_im_name, moving_im_name, reg_resample):
     """
     Randomly transform 2D image by translation or rotation.
     fixed_im_name   =
@@ -18,43 +18,38 @@ def transform_image(fixed_im_name, moving_im_name):
 
     trans_file = 'temp_trans_file.txt'
 
-    angle = random.uniform(0,1)
-    tr_x = random.uniform(0,1)
-    tr_y = random.uniform(0,1)
+    angle = random.uniform(-1, 1)
+    tr_x = random.uniform(-1, 1)
+    tr_y = random.uniform(-1, 1)
 
-    theta = (angle-0.5) * (math.pi / 2)
-
-    #print('angle: {}\ntr_x: {}\ntr_y: {}\ntheta: {}'.format(angle, tr_x, tr_y,
-    #                                                        theta))
+    theta = angle * (math.pi / 2)
 
     transform = Reg.AffineTransformation(np.array(
-        [[math.cos(theta),-math.sin(theta),0,(tr_x-0.5)*50],
-         [math.sin(theta),math.cos(theta),0,(tr_y-0.5)*50],
-         [0,0,1,0],
-         [0,0,0,1]]))
+        [[math.cos(theta), -math.sin(theta), 0, tr_x * 25],
+         [math.sin(theta), math.cos(theta), 0, tr_y * 25],
+         [0, 0, 1, 0],
+         [0, 0, 0, 1]]))
 
     transform.write(trans_file)
 
-#    args = ["reg_resample", "-ref", "training_data/fixed/fixed_000.nii",
-#            "-flo", "training_data/fixed/fixed_000.nii", "-res", "test",
-#            "-trans", "temp_trans_file.txt"]
-#
-#    popen = subprocess.Popen(args, stdout=subprocess.PIPE)
-#    popen.wait()
-#
-
-    args = ["reg_resample", "-ref", fixed_im_name + '.nii', "-flo",
-            fixed_im_name + '.nii', "-res", moving_im_name + '.nii', "-trans",
+    args = [reg_resample,
+            "-ref",
+            fixed_im_name + ".nii",
+            "-flo",
+            fixed_im_name + ".nii",
+            "-res",
+            moving_im_name + ".nii",
+            "-trans",
             trans_file]
     popen = subprocess.Popen(args, stdout=subprocess.PIPE)
     popen.wait()
 
     os.remove(trans_file)
 
-    return [-tr_x, -tr_y, -angle]
+    return [tr_x, tr_y, angle]
 
 
-def generate_data(initial_image, num_images, num_tranforms):
+def generate_data(initial_image, num_images, num_transforms, stir_math, reg_resample):
     """
     Generate data for image registration NN.
 
@@ -63,43 +58,50 @@ def generate_data(initial_image, num_images, num_tranforms):
     num_tranforms   =   number and transforms (and miving images) to generate
                         for each fixed image.
     """
-    transforms = np.zeros((num_images * num_tranforms, 3))
 
-    with open('training_data/transforms.csv', 'w') as transform_csv:
+    path = "./training_data"
+    if os.path.exists(path):
+        shutil.rmtree(path)
 
+    os.mkdir(path)
+    os.mkdir("./training_data/fixed")
+    os.mkdir("./training_data/moving")
+
+    with open("./training_data/transforms.csv", 'w') as transform_csv:
         for i in range(num_images):
             fixed_image = generate_image(initial_image)
 
-            fixed_im_name = 'training_data/fixed/fixed_{:03d}'.format(i)
+            fixed_im_name = "./training_data/fixed/fixed_{:03d}".format(i)
 
             fixed_image.write(fixed_im_name)
 
-            args = ("stir_math", "--output-format", "stir_ITK.par", fixed_im_name,
-                 fixed_im_name + '.hv')
+            args = (stir_math,
+                    "--output-format",
+                    "stir_ITK.par",
+                    fixed_im_name,
+                    fixed_im_name + ".hv")
             popen = subprocess.Popen(args, stdout=subprocess.PIPE)
             popen.wait()
 
-            try:
-                os.mkdir('training_data/moving/fixed_{:03d}'.format(i))
-            except:
-                pass
+            path = "training_data/moving/fixed_{:03d}".format(i)
+            if not os.path.exists(path):
+                os.mkdir(path)
 
-            for j in range(num_tranforms):
+            for j in range(num_transforms):
+                moving_im_name = "training_data/moving/fixed_{:03d}/moving_{:03d}".format(i, j)
 
-                moving_im_name = 'training_data/moving/fixed_{:03d}/moving_{:03d}'.format(i, j)
+                transform = transform_image(fixed_im_name, moving_im_name, reg_resample)
 
-                transform = transform_image(fixed_im_name, moving_im_name)
-
-                transform_csv.write(','.join(str(tr) for tr in transform) +
-                                    '\n')
+                transform_csv.write(','.join(str(tr) for tr in transform) + '\n')
 
 
 def main():
+    generate_data(PET.ImageData("blank_image.hv"),
+                  10,
+                  10,
+                  "/home/alex/Documents/SIRF-SuperBuild_install/bin/stir_math",
+                  "/home/alex/Documents/SIRF-SuperBuild_install/bin/reg_resample")
 
-    initial_image = pet.ImageData('blank_image.hv')
-
-    generate_data(initial_image, 10, 10)
 
 if __name__ == "__main__":
     main()
-

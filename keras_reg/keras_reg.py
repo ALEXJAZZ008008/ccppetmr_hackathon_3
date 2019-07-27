@@ -83,7 +83,7 @@ def get_y_train(input_path):
     return np.nan_to_num(np.asarray(y_train))
 
 
-def fit_model(test_bool, load_bool, apply_bool, input_path, input_prefix, output_path):
+def fit_model(test_bool, load_bool, apply_bool, input_path, input_prefix, output_path, epochs):
     if test_bool:
         # random data for now
         x_train = np.random.rand(100, 100, 100, 2)  # 100 images, shape (100, 100), channels static & moving
@@ -102,22 +102,47 @@ def fit_model(test_bool, load_bool, apply_bool, input_path, input_prefix, output
     else:
         input_x = k.layers.Input(x_train.shape[1:])
 
-        # 5 x 5 x (previous num channels = 2) kernels (32 times => 32 output channels)
+        # 5 x 5 x (previous num channels = 2) kernels (64 times => 64 output channels)
         # padding='same' for zero padding
-        x = k.layers.Conv2D(32, 3, activation=k.activations.relu, padding='same')(input_x)
-        # 3 x 3 x (previous num channels = 32) kernels (64 times)
-        x = k.layers.Conv2D(64, 3, activation=k.activations.relu, padding='same')(x)
-        x = k.layers.Dropout(0.20)(x)  # discard 20% outputs
-        x = k.layers.MaxPooling2D(2)(x)  # downsample by factor of 2, using "maximum" interpolation
+        x = k.layers.Conv2D(64, 5, activation=k.activations.relu, padding='same')(input_x)
+        x = k.layers.AveragePooling2D(2)(x)  # downsample by factor of 2, using "average" interpolation
+
+        # 3 x 3 x (previous num channels = 64) kernels (32 times)
+        x = k.layers.Conv2D(32, 3, activation=k.activations.relu, padding='same')(x)
+        x = k.layers.AveragePooling2D(2)(x)  # downsample by factor of 2, using "average" interpolation
+
+        # 3 x 3 x (previous num channels = 32) kernels (16 times)
+        x = k.layers.Conv2D(16, 3, activation=k.activations.relu, padding='same')(x)
+        x = k.layers.AveragePooling2D(2)(x)  # downsample by factor of 2, using "average" interpolation
+
+        # 3 x 3 x (previous num channels = 16) kernels (8 times)
+        x = k.layers.Conv2D(8, 3, activation=k.activations.relu, padding='same')(x)
+        x = k.layers.AveragePooling2D(2)(x)  # downsample by factor of 2, using "average" interpolation
+
+        # 1 x 1x (previous num channels = 8) kernels (16 times)
+        x = k.layers.Conv2D(16, 1, activation=k.activations.relu, padding='same')(x)
+        x = k.layers.UpSampling2D(2)(x)  # up by factor of 2
+
+        # 1 x 1x (previous num channels = 16) kernels (32 times)
+        x = k.layers.Conv2D(32, 1, activation=k.activations.relu, padding='same')(x)
+        x = k.layers.UpSampling2D(2)(x)  # up by factor of 2
+
+        # 1 x 1x (previous num channels = 64) kernels (32 times)
+        x = k.layers.Conv2D(64, 1, activation=k.activations.relu, padding='same')(x)
+
         x = k.layers.Flatten()(x)  # vectorise
+        x = k.layers.Dense(256, activation=k.activations.relu)(x)  # traditional neural layer with 256 outputs
+        x = k.layers.Dropout(0.20)(x)  # discard 20% outputs
+
         x = k.layers.Dense(128, activation=k.activations.relu)(x)  # traditional neural layer with 128 outputs
         x = k.layers.Dropout(0.20)(x)  # discard 20% outputs
+
         x = k.layers.Dense(64, activation=k.activations.relu)(x)  # traditional neural layer with 64 outputs
         x = k.layers.Dropout(0.20)(x)  # discard 20% outputs
-        x = k.layers.Dense(32, activation=k.activations.relu)(x)  # traditional neural layer with 32 outputs
-        x = k.layers.Dropout(0.20)(x)  # discard 20% outputs
-        x = k.layers.Dense(96, activation=k.activations.relu)(x)  # traditional neural layer with 96 outputs
-        x = k.layers.Dropout(0.20)(x)  # discard 20% outputs
+
+        x = k.layers.Dense(192, activation=k.activations.tanh)(x)  # traditional neural layer with 192 outputs
+        x = k.layers.Dropout(0.50)(x)  # discard 50% outputs
+
         x = k.layers.Dense(3, activation=k.activations.tanh)(x)  # 3 outputs
 
         model = k.Model(input_x, x)
@@ -126,10 +151,10 @@ def fit_model(test_bool, load_bool, apply_bool, input_path, input_prefix, output
 
         # losses:  K.losses.*
         # optimisers: K.optimizers.*
-        model.compile(optimizer=k.optimizers.Adam(), loss=k.losses.mse)
+        model.compile(optimizer=k.optimizers.Nadam(), loss=k.losses.mean_squared_error)
 
     model.summary()
-    model.fit(x_train, y_train, epochs=250, verbose=1)
+    model.fit(x_train, y_train, epochs=epochs, verbose=1)
 
     loss = model.evaluate(x_train, y_train, verbose=0)
     print('Train loss:', loss)
@@ -139,9 +164,10 @@ def fit_model(test_bool, load_bool, apply_bool, input_path, input_prefix, output
     if apply_bool:
         output = model.predict(x_train)
         difference = y_train - output
+        difference_vector = difference.flatten()
 
-        print("Max difference: " + str(difference.max()))
-        print("Mean difference: " + str(difference.mean()))
+        print("Max difference: " + str(difference_vector.max()))
+        print("Mean difference: " + str(difference_vector.mean()))
 
         with open(output_path + "/output_transforms.csv", 'w') as file:
             for i in range(len(output)):
@@ -166,5 +192,11 @@ def test_model(test_bool, data_input_path, data_input_prefix, model_input_path, 
         for i in range(len(output)):
             file.write(str(output[i][0]) + ',' + str(output[i][1]) + ',' + str(output[i][0]) + '\n')
 
+
 if __name__ == "__main__":
-    fit_model(False, False, True, "../training_data/", ".nii", "../results/")
+    fit_model_bool = True
+
+    if fit_model_bool:
+        fit_model(False, False, True, "../training_data/", ".nii", "../results/", 100)
+    else:
+        test_model(False, "../training_data/", ".nii", "../results/", "../results/")
