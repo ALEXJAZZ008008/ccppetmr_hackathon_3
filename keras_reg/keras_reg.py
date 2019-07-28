@@ -26,6 +26,8 @@ def rescale_linear(array, new_min, new_max):
 
 
 def get_x_train(input_path, input_prefix):
+    print("Getting x train")
+
     x_train = []
     x_train_fixed = []
     x_train_moving_fixed = []
@@ -34,15 +36,21 @@ def get_x_train(input_path, input_prefix):
     x_train_fixed_files = os.listdir(relative_path)
     x_train_fixed_files.sort(key=human_sorting)
 
+    print("Get x train fixed")
+
     for i in range(len(x_train_fixed_files)):
         if len(x_train_fixed_files[i].split(input_prefix)) > 1:
             x_train_fixed.append(
                 rescale_linear(
                     PET.ImageData(relative_path + x_train_fixed_files[i]).as_array().squeeze(), 0, 1))
 
+    print("Got x train fixed")
+
     relative_path = input_path + "/moving/"
     x_train_moving_files = os.listdir(relative_path)
     x_train_moving_files.sort(key=human_sorting)
+
+    print("Get x train moving")
 
     for i in range(len(x_train_moving_files)):
         temp_relative_path = relative_path + x_train_moving_files[i] + '/'
@@ -59,14 +67,20 @@ def get_x_train(input_path, input_prefix):
 
         x_train_moving_fixed.append(x_train_moving)
 
+    print("Got x train moving")
+
     for i in range(len(x_train_moving_fixed)):
         for j in range(len(x_train_moving_fixed[i])):
             x_train.append(np.asarray([x_train_fixed[i], x_train_moving_fixed[i][j]]).T)
+
+    print("Got x train")
 
     return np.nan_to_num(np.asarray(x_train)).astype(np.float)
 
 
 def get_y_train(input_path):
+    print("Get y train")
+
     y_train = []
 
     with open(input_path + "/transforms.csv", 'r') as file:
@@ -80,15 +94,21 @@ def get_y_train(input_path):
 
             y_train.append(line_float)
 
+    print("Got y train")
+
     return np.nan_to_num(np.asarray(y_train))
 
 
-def fit_model(test_bool, load_bool, apply_bool, input_path, input_prefix, output_path, epochs):
+def fit_model(input_model, test_bool, load_bool, apply_bool, input_path, input_prefix, output_path, epochs):
     if test_bool:
+        print("Get random data")
+
         # random data for now
         x_train = np.random.rand(100, 100, 100, 2)  # 100 images, shape (100, 100), channels static & moving
         y_train = np.random.rand(100, 3) * 2 - 1  # 100 3-vectors
     else:
+        print("Get training data")
+
         x_train = get_x_train(input_path, input_prefix)
         y_train = get_y_train(input_path)
 
@@ -97,106 +117,164 @@ def fit_model(test_bool, load_bool, apply_bool, input_path, input_prefix, output
     y_train = y_train.astype(np.float)
     x_train /= x_train.std(axis=(2, 3))[:, :, None, None]  # ensures unit stdev
 
-    if load_bool:
-        model = k.models.load_model(output_path + "/model.h5")
+    if input_model is None:
+        print("No input model")
+
+        if load_bool:
+            print("Load model from file")
+
+            model = k.models.load_model(output_path + "/model.h5")
+        else:
+            print("Generate new model")
+
+            input_x = k.layers.Input(x_train.shape[1:])
+
+            x = k.layers.UpSampling2D(3)(input_x)  # upsample by factor of 2
+
+            # 5 x 5 x (previous num channels = 1) kernels (32 times => 32 output channels)
+            # padding='same' for zero padding
+            x = k.layers.Conv2D(32, 5, activation=k.activations.relu, padding='same')(x)
+            x = k.layers.AveragePooling2D(2)(x)  # downsample by factor of 2, using "average" interpolation
+
+            # 3 x 3 x (previous num channels = 32) kernels (64 times)
+            x = k.layers.Conv2D(64, 3, activation=k.activations.relu, padding='same')(x)
+            x = k.layers.AveragePooling2D(2)(x)  # downsample by factor of 2, using "average" interpolation
+
+            # 3 x 3 x (previous num channels = 64) kernels (128 times)
+            x = k.layers.Conv2D(128, 3, activation=k.activations.relu, padding='same')(x)
+            x = k.layers.AveragePooling2D(2)(x)  # downsample by factor of 2, using "average" interpolation
+
+            # 3 x 3 x (previous num channels = 128) kernels (256 times)
+            x = k.layers.Conv2D(256, 3, activation=k.activations.relu, padding='same')(x)
+            x = k.layers.AveragePooling2D(2)(x)  # downsample by factor of 2, using "average" interpolation
+
+            # 1 x 1 x (previous num channels = 256) kernels (256 times)
+            x = k.layers.Conv2D(256, 1, activation=k.activations.relu, padding='same')(x)
+
+            # 1 x 1 x (previous num channels = 256) kernels (256 times)
+            x = k.layers.Conv2D(256, 1, activation=k.activations.relu, padding='same')(x)
+
+            # 1 x 1 x (previous num channels = 256) kernels (256 times)
+            x = k.layers.Conv2D(256, 1, activation=k.activations.relu, padding='same')(x)
+
+            x = k.layers.Flatten()(x)  # vectorise
+
+            x = k.layers.Dense(256, activation=k.activations.relu)(x)  # traditional neural layer with 256 outputs
+            x = k.layers.Dropout(0.20)(x)  # discard 20% outputs
+
+            x = k.layers.Dense(768, activation=k.activations.relu)(x)  # traditional neural layer with 256 outputs
+            x = k.layers.Dropout(0.50)(x)  # discard 20% outputs
+
+            x = k.layers.Dense(3, activation=k.activations.tanh)(x)  # 3 outputs
+
+            model = k.Model(input_x, x)
+
+            # N x 3
+
+            # losses:  K.losses.*
+            # optimisers: K.optimizers.*
+            model.compile(optimizer=k.optimizers.Nadam(), loss=k.losses.mean_squared_error)
     else:
-        input_x = k.layers.Input(x_train.shape[1:])
+        print("Using input model")
 
-        # 5 x 5 x (previous num channels = 2) kernels (64 times => 64 output channels)
-        # padding='same' for zero padding
-        x = k.layers.Conv2D(64, 5, activation=k.activations.relu, padding='same')(input_x)
-        x = k.layers.AveragePooling2D(2)(x)  # downsample by factor of 2, using "average" interpolation
-
-        # 3 x 3 x (previous num channels = 64) kernels (32 times)
-        x = k.layers.Conv2D(32, 3, activation=k.activations.relu, padding='same')(x)
-        x = k.layers.AveragePooling2D(2)(x)  # downsample by factor of 2, using "average" interpolation
-
-        # 3 x 3 x (previous num channels = 32) kernels (16 times)
-        x = k.layers.Conv2D(16, 3, activation=k.activations.relu, padding='same')(x)
-        x = k.layers.AveragePooling2D(2)(x)  # downsample by factor of 2, using "average" interpolation
-
-        # 3 x 3 x (previous num channels = 16) kernels (8 times)
-        x = k.layers.Conv2D(8, 3, activation=k.activations.relu, padding='same')(x)
-        x = k.layers.AveragePooling2D(2)(x)  # downsample by factor of 2, using "average" interpolation
-
-        # 1 x 1x (previous num channels = 8) kernels (16 times)
-        x = k.layers.Conv2D(16, 1, activation=k.activations.relu, padding='same')(x)
-        x = k.layers.UpSampling2D(2)(x)  # up by factor of 2
-
-        # 1 x 1x (previous num channels = 16) kernels (32 times)
-        x = k.layers.Conv2D(32, 1, activation=k.activations.relu, padding='same')(x)
-        x = k.layers.UpSampling2D(2)(x)  # up by factor of 2
-
-        # 1 x 1x (previous num channels = 64) kernels (32 times)
-        x = k.layers.Conv2D(64, 1, activation=k.activations.relu, padding='same')(x)
-
-        x = k.layers.Flatten()(x)  # vectorise
-        x = k.layers.Dense(256, activation=k.activations.relu)(x)  # traditional neural layer with 256 outputs
-        x = k.layers.Dropout(0.20)(x)  # discard 20% outputs
-
-        x = k.layers.Dense(128, activation=k.activations.relu)(x)  # traditional neural layer with 128 outputs
-        x = k.layers.Dropout(0.20)(x)  # discard 20% outputs
-
-        x = k.layers.Dense(64, activation=k.activations.relu)(x)  # traditional neural layer with 64 outputs
-        x = k.layers.Dropout(0.20)(x)  # discard 20% outputs
-
-        x = k.layers.Dense(192, activation=k.activations.tanh)(x)  # traditional neural layer with 192 outputs
-        x = k.layers.Dropout(0.50)(x)  # discard 50% outputs
-
-        x = k.layers.Dense(3, activation=k.activations.tanh)(x)  # 3 outputs
-
-        model = k.Model(input_x, x)
-
-        # N x 3
-
-        # losses:  K.losses.*
-        # optimisers: K.optimizers.*
-        model.compile(optimizer=k.optimizers.Nadam(), loss=k.losses.mean_squared_error)
+        model = input_model
 
     model.summary()
+
+    print("Fitting model")
+
     model.fit(x_train, y_train, epochs=epochs, verbose=1)
 
     loss = model.evaluate(x_train, y_train, verbose=0)
     print('Train loss:', loss)
 
+    print("Saving model")
+
     model.save(output_path + "/model.h5")
 
     if apply_bool:
-        output = model.predict(x_train)
-        difference = y_train - output
-        difference_vector = difference.flatten()
+        test_model(model, False, input_path, input_prefix, input_path, output_path)
 
-        print("Max difference: " + str(difference_vector.max()))
-        print("Mean difference: " + str(difference_vector.mean()))
-
-        with open(output_path + "/output_transforms.csv", 'w') as file:
-            for i in range(len(output)):
-                file.write(str(output[i][0]) + ',' + str(output[i][1]) + ',' + str(output[i][0]) + '\n')
-
-        with open(output_path + "/difference.csv", 'w') as file:
-            for i in range(len(difference)):
-                file.write(str(difference[i][0]) + ',' + str(difference[i][1]) + ',' + str(difference[i][0]) + '\n')
+    return model
 
 
-def test_model(test_bool, data_input_path, data_input_prefix, model_input_path, output_path):
+def write_to_file(file, data):
+    for i in range(len(data)):
+        output_string = ""
+
+        for j in range(len(data[i])):
+            output_string = output_string + str(data[i][j]) + ','
+
+        output_string = output_string[:-1] + '\n'
+
+        file.write(output_string)
+
+
+def test_model(input_model, test_bool, data_input_path, data_input_prefix, model_input_path, output_path):
     if test_bool:
+        print("Get random data")
+
         # random data for now
         x_test = np.random.rand(100, 100, 100, 2)  # 100 images, shape (100, 100), channels static & moving
+        y_test = np.random.rand(100, 3) * 2 - 1  # 100 3-vectors
     else:
-        x_test = get_x_train(data_input_path, data_input_prefix)
+        print("Get test data")
 
-    model = k.models.load_model(model_input_path + "/model.h5")
+        x_test = get_x_train(data_input_path, data_input_prefix)
+        y_test = get_y_train(data_input_path)
+
+    if input_model is None:
+        print("No input model")
+        print("Load model from file")
+
+        model = k.models.load_model(model_input_path + "/model.h5")
+    else:
+        model = input_model
+
+    print("Applying model")
+
     output = model.predict(x_test)
 
     with open(output_path + "/output_transforms.csv", 'w') as file:
-        for i in range(len(output)):
-            file.write(str(output[i][0]) + ',' + str(output[i][1]) + ',' + str(output[i][0]) + '\n')
+        write_to_file(file, output)
+
+    difference_matrix = output - y_test
+    difference_vector = difference_matrix.flatten()
+    boolean_difference = []
+
+    for i in range(len(output)):
+        for j in range(len(output[i])):
+            if output[i][j] - y_test[i][j] < 0.02:
+                boolean_difference.append(np.array(0))
+            else:
+                boolean_difference.append(np.array(1))
+    
+    absolute_difference = sum(boolean_difference)
+    
+    print("Max difference: " + str(difference_vector.max()))
+    print("Mean difference: " + str(difference_vector.mean()))
+    print("Absolute boolean difference: " + str(absolute_difference))
+    print("Relative boolean difference: " + str(((absolute_difference / 3.0) / len(y_test)) * 100) + "%")
+
+    with open(output_path + "/difference.csv", 'w') as file:
+        write_to_file(file, difference_matrix)
 
 
 if __name__ == "__main__":
     fit_model_bool = True
+    while_bool = False
 
     if fit_model_bool:
-        fit_model(False, False, True, "../training_data/", ".nii", "../results/", 100)
+        while_model = None
+
+        while True:
+            print("Fit model")
+
+            while_model = fit_model(while_model, False, False, True, "../training_data/", ".nii", "../results/", 1)
+
+            if not while_bool:
+                break
     else:
-        test_model(False, "../training_data/", ".nii", "../results/", "../results/")
+        print("Test model")
+
+        test_model(None, False, "../training_data/", ".nii", "../results/", "../results/")
