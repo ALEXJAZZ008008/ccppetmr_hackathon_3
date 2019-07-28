@@ -25,63 +25,63 @@ def rescale_linear(array, new_min, new_max):
     return m * array + b
 
 
-def get_x_train(input_path, input_prefix):
-    print("Getting x train")
+def get_x(input_path, input_prefix):
+    print("Getting x")
 
-    x_train = []
-    x_train_fixed = []
-    x_train_moving_fixed = []
+    x = []
+    x_fixed = []
+    x_moving_fixed = []
 
     relative_path = input_path + "/fixed/"
-    x_train_fixed_files = os.listdir(relative_path)
-    x_train_fixed_files.sort(key=human_sorting)
+    x_fixed_files = os.listdir(relative_path)
+    x_fixed_files.sort(key=human_sorting)
 
-    print("Get x train fixed")
+    print("Get x fixed")
 
-    for i in range(len(x_train_fixed_files)):
-        if len(x_train_fixed_files[i].split(input_prefix)) > 1:
-            x_train_fixed.append(
+    for i in range(len(x_fixed_files)):
+        if len(x_fixed_files[i].split(input_prefix)) > 1:
+            x_fixed.append(
                 rescale_linear(
-                    PET.ImageData(relative_path + x_train_fixed_files[i]).as_array().squeeze(), 0, 1))
+                    PET.ImageData(relative_path + x_fixed_files[i]).as_array().squeeze(), 0, 1))
 
-    print("Got x train fixed")
+    print("Got x fixed")
 
     relative_path = input_path + "/moving/"
-    x_train_moving_files = os.listdir(relative_path)
-    x_train_moving_files.sort(key=human_sorting)
+    x_moving_files = os.listdir(relative_path)
+    x_moving_files.sort(key=human_sorting)
 
-    print("Get x train moving")
+    print("Get x moving")
 
-    for i in range(len(x_train_moving_files)):
-        temp_relative_path = relative_path + x_train_moving_files[i] + '/'
-        x_train_moving_files_fixed_files = os.listdir(temp_relative_path)
-        x_train_moving_files_fixed_files.sort(key=human_sorting)
-        x_train_moving = []
+    for i in range(len(x_moving_files)):
+        temp_relative_path = relative_path + x_moving_files[i] + '/'
+        x_moving_files_fixed_files = os.listdir(temp_relative_path)
+        x_moving_files_fixed_files.sort(key=human_sorting)
+        x_moving = []
 
-        for j in range(len(x_train_moving_files_fixed_files)):
-            if len(x_train_moving_files_fixed_files[j].split(input_prefix)) > 1:
-                x_train_moving.append(
+        for j in range(len(x_moving_files_fixed_files)):
+            if len(x_moving_files_fixed_files[j].split(input_prefix)) > 1:
+                x_moving.append(
                     rescale_linear(
                             PET.ImageData(
-                                temp_relative_path + x_train_moving_files_fixed_files[j]).as_array().squeeze(), 0, 1))
+                                temp_relative_path + x_moving_files_fixed_files[j]).as_array().squeeze(), 0, 1))
 
-        x_train_moving_fixed.append(x_train_moving)
+        x_moving_fixed.append(x_moving)
 
-    print("Got x train moving")
+    print("Got x moving")
 
-    for i in range(len(x_train_moving_fixed)):
-        for j in range(len(x_train_moving_fixed[i])):
-            x_train.append(np.asarray([x_train_fixed[i], x_train_moving_fixed[i][j]]).T)
+    for i in range(len(x_moving_fixed)):
+        for j in range(len(x_moving_fixed[i])):
+            x.append(np.asarray([x_fixed[i], x_moving_fixed[i][j]]).T)
 
-    print("Got x train")
+    print("Got x")
 
-    return np.nan_to_num(np.asarray(x_train)).astype(np.float)
+    return np.nan_to_num(np.asarray(x)).astype(np.float)
 
 
-def get_y_train(input_path):
-    print("Get y train")
+def get_y(input_path):
+    print("Get y")
 
-    y_train = []
+    y = []
 
     with open(input_path + "/transforms.csv", 'r') as file:
         for line in file:
@@ -92,11 +92,11 @@ def get_y_train(input_path):
             for i in range(len(line_tuple)):
                 line_float.append(float(line_tuple[i]))
 
-            y_train.append(line_float)
+            y.append(line_float)
 
-    print("Got y train")
+    print("Got y")
 
-    return np.nan_to_num(np.asarray(y_train))
+    return np.nan_to_num(np.asarray(y))
 
 
 def fit_model(input_model, test_bool, load_bool, apply_bool, input_path, input_prefix, output_path, epochs):
@@ -109,8 +109,8 @@ def fit_model(input_model, test_bool, load_bool, apply_bool, input_path, input_p
     else:
         print("Get training data")
 
-        x_train = get_x_train(input_path, input_prefix)
-        y_train = get_y_train(input_path)
+        x_train = get_x(input_path, input_prefix)
+        y_train = get_y(input_path)
 
     # normalisation: change dtype (speed)
     x_train = x_train.astype(np.float)
@@ -129,11 +129,9 @@ def fit_model(input_model, test_bool, load_bool, apply_bool, input_path, input_p
 
             input_x = k.layers.Input(x_train.shape[1:])
 
-            x = k.layers.UpSampling2D(3)(input_x)  # upsample by factor of 2
-
             # 5 x 5 x (previous num channels = 1) kernels (32 times => 32 output channels)
             # padding='same' for zero padding
-            x = k.layers.Conv2D(32, 5, activation=k.activations.relu, padding='same')(x)
+            x = k.layers.Conv2D(32, 5, activation=k.activations.relu, padding='same')(input_x)
             x = k.layers.AveragePooling2D(2)(x)  # downsample by factor of 2, using "average" interpolation
 
             # 3 x 3 x (previous num channels = 32) kernels (64 times)
@@ -163,7 +161,7 @@ def fit_model(input_model, test_bool, load_bool, apply_bool, input_path, input_p
             x = k.layers.Dropout(0.20)(x)  # discard 20% outputs
 
             x = k.layers.Dense(768, activation=k.activations.relu)(x)  # traditional neural layer with 256 outputs
-            x = k.layers.Dropout(0.50)(x)  # discard 20% outputs
+            x = k.layers.Dropout(0.50)(x)  # discard 50% outputs
 
             x = k.layers.Dense(3, activation=k.activations.tanh)(x)  # 3 outputs
 
@@ -220,8 +218,8 @@ def test_model(input_model, test_bool, data_input_path, data_input_prefix, model
     else:
         print("Get test data")
 
-        x_test = get_x_train(data_input_path, data_input_prefix)
-        y_test = get_y_train(data_input_path)
+        x_test = get_x(data_input_path, data_input_prefix)
+        y_test = get_y(data_input_path)
 
     if input_model is None:
         print("No input model")
@@ -244,7 +242,7 @@ def test_model(input_model, test_bool, data_input_path, data_input_prefix, model
 
     for i in range(len(output)):
         for j in range(len(output[i])):
-            if output[i][j] - y_test[i][j] < 0.02:
+            if output[i][j] - y_test[i][j] < 0.1:
                 boolean_difference.append(np.array(0))
             else:
                 boolean_difference.append(np.array(1))
