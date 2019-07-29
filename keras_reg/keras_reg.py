@@ -99,23 +99,171 @@ def get_y(input_path):
     return np.nan_to_num(np.asarray(y))
 
 
-def fit_model(input_model, test_bool, load_bool, apply_bool, input_path, input_prefix, output_path, epochs):
+def perceptron(x):
+    x = k.layers.Flatten()(x)
+
+    return x
+
+
+def fully_connected(x):
+    x = k.layers.Flatten()(x)
+
+    x = k.layers.Dense(units=256)(x)
+    x = k.layers.Activation('relu')(x)
+
+    return x
+
+
+def deep_fully_connected(x):
+    x = k.layers.Flatten()(x)
+
+    for _ in range(2):
+        x = k.layers.Dense(units=256)(x)
+        x = k.layers.Activation('relu')(x)
+
+    return x
+
+
+def average(x):
+    x = k.layers.AveragePooling2D(pool_size=(3, 3), strides=(1, 1), padding="same")(x)
+
+    x = k.layers.Conv2D(filters=64, kernel_size=(1, 1), strides=(1, 1), padding="same")(x)
+    x = k.layers.Activation('relu')(x)
+
+    return x
+
+
+def papernet(x):
+    for _ in range(4):
+        x = k.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=(1, 1), padding="same")(x)
+        x = k.layers.Activation('relu')(x)
+
+        x = average(x)
+
+    for _ in range(3):
+        x = k.layers.Conv2D(filters=64, kernel_size=(1, 1), strides=(1, 1), padding="same")(x)
+        x = k.layers.Activation('relu')(x)
+
+    x = k.layers.Flatten()(x)
+
+    return x
+
+
+def googlenet_module(x):
+    x_1 = k.layers.Conv2D(filters=64, kernel_size=(1, 1), strides=(1, 1), padding="same")(x)
+    x_1 = k.layers.Activation('relu')(x_1)
+
+    x_2 = k.layers.Conv2D(filters=64, kernel_size=(1, 1), strides=(1, 1), padding="same")(x)
+    x_2 = k.layers.Activation('relu')(x_2)
+    x_2 = k.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=(1, 1), padding="same")(x_2)
+    x_2 = k.layers.Activation('relu')(x_2)
+
+    x_3 = k.layers.Conv2D(filters=64, kernel_size=(1, 1), strides=(1, 1), padding="same")(x)
+    x_3 = k.layers.Activation('relu')(x_3)
+    x_3 = k.layers.Conv2D(filters=64, kernel_size=(5, 5), strides=(1, 1), padding="same")(x_3)
+    x_3 = k.layers.Activation('relu')(x_3)
+
+    x_4 = average(x)
+
+    x = k.layers.concatenate([x_1, x_2, x_3, x_4], axis=3)
+
+    return x
+
+
+def net_input(x):
+    x = k.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=(3, 3), padding="same")(x)
+    x = k.layers.Activation('relu')(x)
+
+    x = average(x)
+
+    return x
+
+
+def googlenet(x):
+    x = net_input(x)
+
+    for _ in range(3):
+        x = googlenet_module(x)
+
+    x = average(x)
+
+    x = k.layers.Flatten()(x)
+
+    return x
+
+
+def resnet_module(x):
+    x = k.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=(2, 2), padding="same")(x)
+    x = k.layers.Activation('relu')(x)
+
+    for _ in range(3):
+        x_shortcut = x
+
+        for _ in range(2):
+            x = k.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=(1, 1), padding="same")(x)
+            x = k.layers.Activation('relu')(x)
+
+        x = k.layers.Add()([x, x_shortcut])
+        x = k.layers.Activation('relu')(x)
+
+    return x
+
+
+def resnet(x):
+    x = net_input(x)
+
+    for _ in range(4):
+        x = resnet_module(x)
+
+    x = average(x)
+
+    x = k.layers.Flatten()(x)
+
+    return x
+
+
+def googleresnet_module(x):
+    x = k.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=(2, 2), padding="same")(x)
+    x = k.layers.Activation('relu')(x)
+
+    x_shortcut = x
+
+    x = googlenet_module(x)
+
+    x = k.layers.Conv2D(filters=64, kernel_size=(1, 1), strides=(1, 1), padding="same")(x)
+    x = k.layers.Activation('relu')(x)
+
+    x = k.layers.Add()([x, x_shortcut])
+    x = k.layers.Activation('relu')(x)
+
+    return x
+
+
+def googleresnet(x):
+    x = net_input(x)
+
+    for _ in range(4):
+        x = googleresnet_module(x)
+
+    x = average(x)
+
+    x = k.layers.Flatten()(x)
+
+    return x
+
+
+def fit_model(input_model, test_bool, save_bool, load_bool, apply_bool, input_path, input_prefix, output_path, epochs):
     if test_bool:
         print("Get random data")
 
         # random data for now
         x_train = np.random.rand(100, 100, 100, 2)  # 100 images, shape (100, 100), channels static & moving
-        y_train = np.random.rand(100, 3) * 2 - 1  # 100 3-vectors
+        y_train = (np.random.rand(100, 3) * 2) - 1  # 100 3-vectors
     else:
         print("Get training data")
 
         x_train = get_x(input_path, input_prefix)
         y_train = get_y(input_path)
-
-    # normalisation: change dtype (speed)
-    x_train = x_train.astype(np.float)
-    y_train = y_train.astype(np.float)
-    x_train /= x_train.std(axis=(2, 3))[:, :, None, None]  # ensures unit stdev
 
     if input_model is None:
         print("No input model")
@@ -129,49 +277,17 @@ def fit_model(input_model, test_bool, load_bool, apply_bool, input_path, input_p
 
             input_x = k.layers.Input(x_train.shape[1:])
 
-            # 5 x 5 x (previous num channels = 1) kernels (32 times => 32 output channels)
-            # padding='same' for zero padding
-            x = k.layers.Conv2D(32, 5, activation=k.activations.relu, padding='same')(input_x)
-            x = k.layers.AveragePooling2D(2)(x)  # downsample by factor of 2, using "average" interpolation
+            x = k.layers.Conv2D(filters=2, kernel_size=(1, 1), strides=(1, 1), padding="same")(input_x)
+            x = k.layers.Activation('relu')(x)
 
-            # 3 x 3 x (previous num channels = 32) kernels (64 times)
-            x = k.layers.Conv2D(64, 3, activation=k.activations.relu, padding='same')(x)
-            x = k.layers.AveragePooling2D(2)(x)  # downsample by factor of 2, using "average" interpolation
+            x = googleresnet(x)
 
-            # 3 x 3 x (previous num channels = 64) kernels (128 times)
-            x = k.layers.Conv2D(128, 3, activation=k.activations.relu, padding='same')(x)
-            x = k.layers.AveragePooling2D(2)(x)  # downsample by factor of 2, using "average" interpolation
-
-            # 3 x 3 x (previous num channels = 128) kernels (256 times)
-            x = k.layers.Conv2D(256, 3, activation=k.activations.relu, padding='same')(x)
-            x = k.layers.AveragePooling2D(2)(x)  # downsample by factor of 2, using "average" interpolation
-
-            # 1 x 1 x (previous num channels = 256) kernels (256 times)
-            x = k.layers.Conv2D(256, 1, activation=k.activations.relu, padding='same')(x)
-
-            # 1 x 1 x (previous num channels = 256) kernels (256 times)
-            x = k.layers.Conv2D(256, 1, activation=k.activations.relu, padding='same')(x)
-
-            # 1 x 1 x (previous num channels = 256) kernels (256 times)
-            x = k.layers.Conv2D(256, 1, activation=k.activations.relu, padding='same')(x)
-
-            x = k.layers.Flatten()(x)  # vectorise
-
-            x = k.layers.Dense(256, activation=k.activations.relu)(x)  # traditional neural layer with 256 outputs
-            x = k.layers.Dropout(0.20)(x)  # discard 20% outputs
-
-            x = k.layers.Dense(768, activation=k.activations.relu)(x)  # traditional neural layer with 256 outputs
-            x = k.layers.Dropout(0.50)(x)  # discard 50% outputs
-
-            x = k.layers.Dense(3, activation=k.activations.tanh)(x)  # 3 outputs
+            x = k.layers.Dense(units=3)(x)
+            x = k.layers.Activation('tanh')(x)
 
             model = k.Model(input_x, x)
 
-            # N x 3
-
-            # losses:  K.losses.*
-            # optimisers: K.optimizers.*
-            model.compile(optimizer=k.optimizers.Nadam(), loss=k.losses.mean_squared_error)
+            model.compile(optimizer=k.optimizers.Nadam(), loss=k.losses.mean_absolute_error)
     else:
         print("Using input model")
 
@@ -188,7 +304,8 @@ def fit_model(input_model, test_bool, load_bool, apply_bool, input_path, input_p
 
     print("Saving model")
 
-    model.save(output_path + "/model.h5")
+    if save_bool:
+        model.save(output_path + "/model.h5")
 
     if apply_bool:
         test_model(model, False, input_path, input_prefix, input_path, output_path)
@@ -237,21 +354,23 @@ def test_model(input_model, test_bool, data_input_path, data_input_prefix, model
         write_to_file(file, output)
 
     difference_matrix = output - y_test
-    difference_vector = difference_matrix.flatten()
+    difference_vector = np.abs(difference_matrix.flatten())
+    
+    print("Max difference: " + str(difference_vector.max()))
+    print("Mean difference: " + str(difference_vector.mean()))
+
     boolean_difference = []
 
     for i in range(len(output)):
         for j in range(len(output[i])):
-            if output[i][j] - y_test[i][j] < 0.1:
+            if output[i][j] - y_test[i][j] < 0.01:
                 boolean_difference.append(np.array(0))
             else:
                 boolean_difference.append(np.array(1))
-    
+
     absolute_difference = sum(boolean_difference)
-    
-    print("Max difference: " + str(difference_vector.max()))
-    print("Mean difference: " + str(difference_vector.mean()))
-    print("Absolute boolean difference: " + str(absolute_difference))
+
+    print("Absolute boolean difference: " + str(absolute_difference) + "/" + str(len(y_test) * 3))
     print("Relative boolean difference: " + str(((absolute_difference / 3.0) / len(y_test)) * 100) + "%")
 
     with open(output_path + "/difference.csv", 'w') as file:
@@ -268,7 +387,15 @@ if __name__ == "__main__":
         while True:
             print("Fit model")
 
-            while_model = fit_model(while_model, False, False, True, "../training_data/", ".nii", "../results/", 1)
+            while_model = fit_model(while_model,
+                                    False,
+                                    False,
+                                    while_bool,
+                                    True,
+                                    "../training_data/",
+                                    ".nii",
+                                    "../results/",
+                                    100)
 
             if not while_bool:
                 break
