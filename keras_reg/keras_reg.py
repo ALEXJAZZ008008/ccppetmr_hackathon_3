@@ -13,7 +13,7 @@ def atoi(string):
 
 # https://stackoverflow.com/questions/5967500/how-to-correctly-sort-a-string-with-a-number-inside
 def human_sorting(string):
-    return [atoi(c) for c in re.split(r'(\d+)', string)]
+    return [atoi(c) for c in re.split(r"(\d+)", string)]
 
 
 # https://stackoverflow.com/questions/36000843/scale-numpy-array-to-certain-range
@@ -53,7 +53,7 @@ def get_x(input_path, input_prefix):
     print("Get x moving")
 
     for i in range(len(x_moving_files)):
-        temp_relative_path = relative_path + x_moving_files[i] + '/'
+        temp_relative_path = relative_path + x_moving_files[i] + "/"
         x_moving_files_fixed_files = os.listdir(temp_relative_path)
         x_moving_files_fixed_files.sort(key=human_sorting)
         x_moving = []
@@ -83,10 +83,10 @@ def get_y(input_path):
 
     y = []
 
-    with open(input_path + "/transforms.csv", 'r') as file:
+    with open(input_path + "/transforms.csv", "r") as file:
         for line in file:
             line = line.rstrip()
-            line_tuple = line.split(',')
+            line_tuple = line.split(",")
             line_float = []
 
             for i in range(len(line_tuple)):
@@ -109,7 +109,7 @@ def fully_connected(x):
     x = k.layers.Flatten()(x)
 
     x = k.layers.Dense(units=256)(x)
-    x = k.layers.Activation('relu')(x)
+    x = k.layers.Activation("relu")(x)
 
     return x
 
@@ -119,16 +119,7 @@ def deep_fully_connected(x):
 
     for _ in range(2):
         x = k.layers.Dense(units=256)(x)
-        x = k.layers.Activation('relu')(x)
-
-    return x
-
-
-def average(x):
-    x = k.layers.AveragePooling2D(pool_size=(3, 3), strides=(1, 1), padding="same")(x)
-
-    x = k.layers.Conv2D(filters=64, kernel_size=(1, 1), strides=(1, 1), padding="same")(x)
-    x = k.layers.Activation('relu')(x)
+        x = k.layers.Activation("relu")(x)
 
     return x
 
@@ -136,120 +127,307 @@ def average(x):
 def papernet(x):
     for _ in range(4):
         x = k.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=(1, 1), padding="same")(x)
-        x = k.layers.Activation('relu')(x)
+        x = k.layers.Activation("relu")(x)
 
-        x = average(x)
+        x = k.layers.AveragePooling2D(pool_size=(2, 2), strides=(1, 1), padding="same")(x)
 
     for _ in range(3):
         x = k.layers.Conv2D(filters=64, kernel_size=(1, 1), strides=(1, 1), padding="same")(x)
-        x = k.layers.Activation('relu')(x)
+        x = k.layers.Activation("relu")(x)
 
     x = k.layers.Flatten()(x)
 
     return x
 
 
-def googlenet_module(x):
-    x_1 = k.layers.Conv2D(filters=64, kernel_size=(1, 1), strides=(1, 1), padding="same")(x)
-    x_1 = k.layers.Activation('relu')(x_1)
+def alexnet_module(x):
+    # Convolutional Layer
+    x = k.layers.Conv2D(filters=48, kernel_size=(11, 11), strides=(4, 4), padding="valid")(x)
+    x = k.layers.Activation("relu")(x)
+    # Max Pooling
+    x = k.layers.MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding="valid")(x)
 
-    x_2 = k.layers.Conv2D(filters=64, kernel_size=(1, 1), strides=(1, 1), padding="same")(x)
-    x_2 = k.layers.Activation('relu')(x_2)
-    x_2 = k.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=(1, 1), padding="same")(x_2)
-    x_2 = k.layers.Activation('relu')(x_2)
+    # Convolutional Layer
+    x = k.layers.Conv2D(filters=128, kernel_size=(11, 11), strides=(1, 1), padding="valid")(x)
+    x = k.layers.Activation("relu")(x)
+    # Max Pooling
+    x = k.layers.MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding="valid")(x)
 
-    x_3 = k.layers.Conv2D(filters=64, kernel_size=(1, 1), strides=(1, 1), padding="same")(x)
-    x_3 = k.layers.Activation('relu')(x_3)
-    x_3 = k.layers.Conv2D(filters=64, kernel_size=(5, 5), strides=(1, 1), padding="same")(x_3)
-    x_3 = k.layers.Activation('relu')(x_3)
+    # Convolutional Layer
+    x = k.layers.Conv2D(filters=192, kernel_size=(3, 3), strides=(1, 1), padding="valid")(x)
+    x = k.layers.Activation("relu")(x)
 
-    x_4 = average(x)
+    # Convolutional Layer
+    x = k.layers.Conv2D(filters=192, kernel_size=(3, 3), strides=(1, 1), padding="valid")(x)
+    x = k.layers.Activation("relu")(x)
 
-    x = k.layers.concatenate([x_1, x_2, x_3, x_4], axis=3)
+    # Convolutional Layer
+    x = k.layers.Conv2D(filters=128, kernel_size=(3, 3), strides=(1, 1), padding="valid")(x)
+    x = k.layers.Activation("relu")(x)
+    # Max Pooling
+    x = k.layers.MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding="valid")(x)
 
     return x
 
 
-def net_input(x):
-    x = k.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=(3, 3), padding="same")(x)
-    x = k.layers.Activation('relu')(x)
+def alexnet(x):
+    # Up Sampling
+    x = k.layers.UpSampling2D(size=(3, 3))(x)
 
-    x = average(x)
+    # Split
+    x_1 = alexnet_module(x)
+    x_2 = alexnet_module(x)
+
+    # Add
+    x = k.layers.Add()([x_1, x_2])
+
+    # Flatten
+    x = k.layers.Flatten()(x)
+
+    # Fully Connected Layer
+    x = k.layers.Dense(units=4096)(x)
+    x = k.layers.Activation("relu")(x)
+
+    # Fully Connected Layer
+    x = k.layers.Dense(units=4096)(x)
+    x = k.layers.Activation("relu")(x)
+
+    # Fully Connected Layer
+    x = k.layers.Dense(units=1000)(x)
+    x = k.layers.Activation("relu")(x)
+
+    return x
+
+
+def googlenet_module(x, conv_filter_1, conv_filter_2, conv_filter_3, conv_filter_4, conv_filter_5, conv_filter_6):
+    x_1 = k.layers.Conv2D(filters=conv_filter_1, kernel_size=(1, 1), strides=(1, 1), padding="same")(x)
+    x_1 = k.layers.Activation("relu")(x_1)
+
+    x_2 = k.layers.Conv2D(filters=conv_filter_2, kernel_size=(1, 1), strides=(1, 1), padding="same")(x)
+    x_2 = k.layers.Activation("relu")(x_2)
+    x_2 = k.layers.Conv2D(filters=conv_filter_3, kernel_size=(3, 3), strides=(1, 1), padding="same")(x_2)
+    x_2 = k.layers.Activation("relu")(x_2)
+
+    x_3 = k.layers.Conv2D(filters=conv_filter_4, kernel_size=(1, 1), strides=(1, 1), padding="same")(x)
+    x_3 = k.layers.Activation("relu")(x_3)
+    x_3 = k.layers.Conv2D(filters=conv_filter_5, kernel_size=(5, 5), strides=(1, 1), padding="same")(x_3)
+    x_3 = k.layers.Activation("relu")(x_3)
+
+    x_4 = k.layers.MaxPooling2D(pool_size=(3, 3), strides=(1, 1), padding="same")(x)
+    x_4 = k.layers.Conv2D(filters=conv_filter_6, kernel_size=(1, 1), strides=(1, 1), padding="same")(x_4)
+    x_4 = k.layers.Activation("relu")(x_4)
+
+    x = k.layers.Concatenate(axis=3)([x_1, x_2, x_3, x_4])
+
+    return x
+
+
+def googlemet_preoutput_module(x):
+    x = k.layers.AveragePooling2D(pool_size=(5, 5), strides=(3, 3))(x)
+
+    x = k.layers.Conv2D(filters=128, kernel_size=(1, 1), strides=(1, 1), padding="same")(x)
+    x = k.layers.Activation("relu")(x)
+
+    x = k.layers.Flatten()(x)
+
+    x = k.layers.Dense(units=1024)(x)
+    x = k.layers.Activation("relu")(x)
+
+    return x
+
+
+def output_module(x):
+    x = k.layers.Dense(units=3)(x)
+    x = k.layers.Activation("tanh")(x)
+
+    return x
+
+
+def googlenet_output_module(x):
+    x = googlemet_preoutput_module(x)
+
+    x = output_module(x)
+
+    return x
+
+
+def googlenet_input(x):
+    # Up Sampling
+    x = k.layers.UpSampling2D(size=(2, 2))(x)
+
+    x = k.layers.Conv2D(filters=64, kernel_size=(7, 7), strides=(2, 2), padding="same")(x)
+    x = k.layers.Activation("relu")(x)
+
+    x = k.layers.MaxPooling2D(pool_size=(3, 3), strides=(2, 2), padding="valid")(x)
+
+    x = k.layers.Conv2D(filters=64, kernel_size=(1, 1), strides=(1, 1), padding="same")(x)
+    x = k.layers.Activation("relu")(x)
+
+    x = k.layers.Conv2D(filters=192, kernel_size=(3, 3), strides=(1, 1), padding="same")(x)
+    x = k.layers.Activation("relu")(x)
+
+    x = k.layers.MaxPooling2D(pool_size=(3, 3), strides=(2, 2), padding="valid")(x)
+
+    x = googlenet_module(x, 64, 96, 128, 16, 32, 32)
+    x = googlenet_module(x, 128, 128, 192, 32, 96, 64)
+
+    x = k.layers.MaxPooling2D(pool_size=(3, 3), strides=(2, 2), padding="valid")(x)
+
+    x = googlenet_module(x, 192, 96, 208, 16, 48, 64)
+
+    return x
+
+
+def shallow_googlenet(x):
+    x = googlenet_input(x)
+
+    x = googlenet_output_module(x)
 
     return x
 
 
 def googlenet(x):
-    x = net_input(x)
+    x = googlenet_input(x)
 
-    for _ in range(3):
-        x = googlenet_module(x)
+    x_1 = googlenet_output_module(x)
 
-    x = average(x)
+    x = googlenet_module(x, 160, 112, 224, 24, 64, 64)
+    x = googlenet_module(x, 128, 128, 256, 24, 64, 64)
+    x = googlenet_module(x, 112, 144, 288, 32, 64, 64)
 
-    x = k.layers.Flatten()(x)
+    x_2 = googlenet_output_module(x)
 
-    return x
+    x = googlenet_module(x, 256, 160, 320, 32, 128, 128)
+
+    x = k.layers.MaxPooling2D(pool_size=(3, 3), strides=(2, 2), padding="valid")(x)
+
+    x = googlenet_module(x, 256, 160, 320, 32, 128, 128)
+    x = googlenet_module(x, 384, 192, 384, 48, 128, 128)
+
+    x = googlemet_preoutput_module(x)
+    
+    return x, x_1, x_2
 
 
-def resnet_module(x):
-    x = k.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=(2, 2), padding="same")(x)
-    x = k.layers.Activation('relu')(x)
+def identity_block(X, f, filters, stage, block):
 
-    for _ in range(3):
-        x_shortcut = x
+    # Defining name basis
+    conv_name_base = 'res' + str(stage) + block + '_branch'
+    bn_name_base = 'bn' + str(stage) + block + '_branch'
 
-        for _ in range(2):
-            x = k.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=(1, 1), padding="same")(x)
-            x = k.layers.Activation('relu')(x)
+    # Retrieve Filters
+    F1, F2, F3 = filters
 
-        x = k.layers.Add()([x, x_shortcut])
-        x = k.layers.Activation('relu')(x)
+    # Save the input value
+    X_shortcut = X
 
-    return x
+    # First component of main path
+    X = k.layers.Conv2D(filters = F1, kernel_size = (1, 1), strides = (1,1), padding = 'valid', name =
+                        conv_name_base + '2a', kernel_initializer = k.initializers.glorot_uniform(seed=0))(X)
+    X = k.layers.BatchNormalization(axis = 3, name = bn_name_base + '2a')(X)
+    X = k.layers.Activation('relu')(X)
+
+    # Second component of main path
+    X = k.layers.Conv2D(filters = F2, kernel_size = (f, f), strides = (1, 1), padding = 'same', name =
+                        conv_name_base + '2b', kernel_initializer = k.initializers.glorot_uniform(seed=0))(X)
+    X = k.layers.BatchNormalization(axis = 3, name = bn_name_base + '2b')(X)
+    X = k.layers.Activation('relu')(X)
+
+    # Third component of main path
+    X = k.layers.Conv2D(filters=F3, kernel_size=(1, 1), strides=(1,1), padding='valid', name=
+                        conv_name_base + '2c', kernel_initializer=k.initializers.glorot_uniform(seed=0))(X)
+    X = k.layers.BatchNormalization(axis=3, name=bn_name_base + '2c')(X)
+
+    # Final step: Add shortcut value to main path, and pass it through a RELU activatin
+    X = k.layers.Add()([X, X_shortcut])
+    X = k.layers.Activation('relu')(X)
+
+    return X
+
+
+def convolutional_block(X, f, filters, stage, block, s=2):
+    # Defining name basis
+    conv_name_base = 'res' + str(stage) + block + '_branch'
+    bn_name_base = 'bn' + str(stage) + block + '_branch'
+
+    # Retrieve Filters
+    F1, F2, F3 = filters
+
+    # Save the input value
+    X_shortcut = X
+
+    ##### MAIN PATH #####
+    # First component of main path
+    X = k.layers.Conv2D(filters=F1, kernel_size=(1, 1), strides=(s, s), padding='valid', name=conv_name_base +
+'2a', kernel_initializer=k.initializers.glorot_uniform(seed=0))(X)
+    X = k.layers.BatchNormalization(axis=3, name=bn_name_base + '2a')(X)
+    X = k.layers.Activation('relu')(X)
+
+    # Second component of main path
+    X = k.layers.Conv2D(filters=F2, kernel_size=(f, f), strides=(1, 1), padding='same', name=conv_name_base +
+'2b', kernel_initializer=k.initializers.glorot_uniform(seed=0))(X)
+    X = k.layers.BatchNormalization(axis=3, name=bn_name_base + '2b')(X)
+    X = k.layers.Activation('relu')(X)
+
+    # Third component of main path
+    X = k.layers.Conv2D(filters=F3, kernel_size=(1, 1), strides=(1, 1), padding='valid', name=conv_name_base +
+'2c', kernel_initializer=k.initializers.glorot_uniform(seed=0))(X)
+    X = k.layers.BatchNormalization(axis=3, name=bn_name_base + '2c')(X)
+
+    ##### SHORTCUT PATH #####
+    X_shortcut = k.layers.Conv2D(filters=F3, kernel_size=(1, 1), strides=(s, s), padding='valid',
+name=conv_name_base + '1', kernel_initializer=k.initializers.glorot_uniform(seed=0))(X_shortcut)
+    X_shortcut = k.layers.BatchNormalization(axis=3, name=bn_name_base + '1')(X_shortcut)
+
+    # Final step: Add shortcut value to main path, and pass it through a RELU activatin
+    X = k.layers.Add()([X, X_shortcut])
+    X = k.layers.Activation('relu')(X)
+
+    return X
 
 
 def resnet(x):
-    x = net_input(x)
+    # Zero-Padding
+    X = k.layers.ZeroPadding2D((3, 3))(x)
 
-    for _ in range(4):
-        x = resnet_module(x)
+    # Stage 1
+    X = k.layers.Conv2D(64, (7, 7), strides=(2, 2), name='conv1',
+                        kernel_initializer=k.initializers.glorot_uniform(seed=0))(X)
+    X = k.layers.BatchNormalization(axis=3, name='bn_conv1')(X)
+    X = k.layers.Activation('relu')(X)
+    X = k.layers.MaxPooling2D((3, 3), strides=(2, 2))(X)
 
-    x = average(x)
+    # Stage 2
+    X = convolutional_block(X, f=3, filters=[64, 64, 256], stage=2, block='a', s=1)
+    X = identity_block(X, 3, [64, 64, 256], stage=2, block='b')
+    X = identity_block(X, 3, [64, 64, 256], stage=2, block='c')
 
-    x = k.layers.Flatten()(x)
+    # Stage 3
+    X = convolutional_block(X, f=3, filters=[128, 128, 512], stage=3, block='a', s=2)
+    X = identity_block(X, 3, [128, 128, 512], stage=3, block='b')
+    X = identity_block(X, 3, [128, 128, 512], stage=3, block='c')
+    X = identity_block(X, 3, [128, 128, 512], stage=3, block='d')
 
-    return x
+    # Stage 4
+    X = convolutional_block(X, f=3, filters=[256, 256, 1024], stage=4, block='a', s=2)
+    X = identity_block(X, 3, [256, 256, 1024], stage=4, block='b')
+    X = identity_block(X, 3, [256, 256, 1024], stage=4, block='c')
+    X = identity_block(X, 3, [256, 256, 1024], stage=4, block='d')
+    X = identity_block(X, 3, [256, 256, 1024], stage=4, block='e')
+    X = identity_block(X, 3, [256, 256, 1024], stage=4, block='f')
 
+    # Stage 5
+    X = convolutional_block(X, f=3, filters=[512, 512, 2048], stage=5, block='a', s=2)
+    X = identity_block(X, 3, [512, 512, 2048], stage=5, block='b')
+    X = identity_block(X, 3, [512, 512, 2048], stage=5, block='c')
 
-def googleresnet_module(x):
-    x = k.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=(2, 2), padding="same")(x)
-    x = k.layers.Activation('relu')(x)
+    # AVGPOOL
+    X = k.layers.AveragePooling2D(pool_size=(2, 2), padding='same')(X)
 
-    x_shortcut = x
+    # Output layer
+    X = k.layers.Flatten()(X)
 
-    x = googlenet_module(x)
-
-    x = k.layers.Conv2D(filters=64, kernel_size=(1, 1), strides=(1, 1), padding="same")(x)
-    x = k.layers.Activation('relu')(x)
-
-    x = k.layers.Add()([x, x_shortcut])
-    x = k.layers.Activation('relu')(x)
-
-    return x
-
-
-def googleresnet(x):
-    x = net_input(x)
-
-    for _ in range(4):
-        x = googleresnet_module(x)
-
-    x = average(x)
-
-    x = k.layers.Flatten()(x)
-
-    return x
+    return X
 
 
 def fit_model(input_model, test_bool, save_bool, load_bool, apply_bool, input_path, input_prefix, output_path, epochs):
@@ -277,15 +455,11 @@ def fit_model(input_model, test_bool, save_bool, load_bool, apply_bool, input_pa
 
             input_x = k.layers.Input(x_train.shape[1:])
 
-            x = k.layers.Conv2D(filters=2, kernel_size=(1, 1), strides=(1, 1), padding="same")(input_x)
-            x = k.layers.Activation('relu')(x)
+            x = resnet(input_x)
 
-            x = googleresnet(x)
+            x = output_module(x)
 
-            x = k.layers.Dense(units=3)(x)
-            x = k.layers.Activation('tanh')(x)
-
-            model = k.Model(input_x, x)
+            model = k.Model(inputs=input_x, outputs=x)
 
             model.compile(optimizer=k.optimizers.Nadam(), loss=k.losses.mean_absolute_error)
     else:
@@ -300,7 +474,7 @@ def fit_model(input_model, test_bool, save_bool, load_bool, apply_bool, input_pa
     model.fit(x_train, y_train, epochs=epochs, verbose=1)
 
     loss = model.evaluate(x_train, y_train, verbose=0)
-    print('Train loss:', loss)
+    print("Train loss:", loss)
 
     print("Saving model")
 
@@ -318,9 +492,9 @@ def write_to_file(file, data):
         output_string = ""
 
         for j in range(len(data[i])):
-            output_string = output_string + str(data[i][j]) + ','
+            output_string = output_string + str(data[i][j]) + ","
 
-        output_string = output_string[:-1] + '\n'
+        output_string = output_string[:-1] + "\n"
 
         file.write(output_string)
 
@@ -350,7 +524,7 @@ def test_model(input_model, test_bool, data_input_path, data_input_prefix, model
 
     output = model.predict(x_test)
 
-    with open(output_path + "/output_transforms.csv", 'w') as file:
+    with open(output_path + "/output_transforms.csv", "w") as file:
         write_to_file(file, output)
 
     difference_matrix = output - y_test
@@ -373,7 +547,7 @@ def test_model(input_model, test_bool, data_input_path, data_input_prefix, model
     print("Absolute boolean difference: " + str(absolute_difference) + "/" + str(len(y_test) * 3))
     print("Relative boolean difference: " + str(((absolute_difference / 3.0) / len(y_test)) * 100) + "%")
 
-    with open(output_path + "/difference.csv", 'w') as file:
+    with open(output_path + "/difference.csv", "w") as file:
         write_to_file(file, difference_matrix)
 
 
@@ -395,7 +569,7 @@ if __name__ == "__main__":
                                     "../training_data/",
                                     ".nii",
                                     "../results/",
-                                    100)
+                                    1000)
 
             if not while_bool:
                 break
