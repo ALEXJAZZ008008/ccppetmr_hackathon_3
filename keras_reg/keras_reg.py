@@ -141,60 +141,95 @@ def papernet(x):
 
 
 def alexnet_module(x):
-    # Convolutional Layer
     x = k.layers.Conv2D(filters=48, kernel_size=(11, 11), strides=(4, 4), padding="valid")(x)
     x = k.layers.Activation("relu")(x)
-    # Max Pooling
+
     x = k.layers.MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding="valid")(x)
 
-    # Convolutional Layer
     x = k.layers.Conv2D(filters=128, kernel_size=(11, 11), strides=(1, 1), padding="valid")(x)
     x = k.layers.Activation("relu")(x)
-    # Max Pooling
+
     x = k.layers.MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding="valid")(x)
 
-    # Convolutional Layer
     x = k.layers.Conv2D(filters=192, kernel_size=(3, 3), strides=(1, 1), padding="valid")(x)
     x = k.layers.Activation("relu")(x)
 
-    # Convolutional Layer
     x = k.layers.Conv2D(filters=192, kernel_size=(3, 3), strides=(1, 1), padding="valid")(x)
     x = k.layers.Activation("relu")(x)
 
-    # Convolutional Layer
     x = k.layers.Conv2D(filters=128, kernel_size=(3, 3), strides=(1, 1), padding="valid")(x)
     x = k.layers.Activation("relu")(x)
-    # Max Pooling
+
     x = k.layers.MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding="valid")(x)
 
     return x
 
 
+def alexnet_output_module(x):
+    for _ in range(2):
+        x = k.layers.Dense(units=4096)(x)
+        x = k.layers.Activation("relu")(x)
+
+    x = k.layers.Dense(units=1000)(x)
+    x = k.layers.Activation("relu")(x)
+
+    return x
+
+
 def alexnet(x):
-    # Up Sampling
     x = k.layers.UpSampling2D(size=(3, 3))(x)
 
-    # Split
     x_1 = alexnet_module(x)
     x_2 = alexnet_module(x)
 
-    # Add
     x = k.layers.Add()([x_1, x_2])
+    x = k.layers.Activation("relu")(x)
 
-    # Flatten
     x = k.layers.Flatten()(x)
 
-    # Fully Connected Layer
-    x = k.layers.Dense(units=4096)(x)
-    x = k.layers.Activation("relu")(x)
+    x = alexnet_output_module(x)
 
-    # Fully Connected Layer
-    x = k.layers.Dense(units=4096)(x)
-    x = k.layers.Activation("relu")(x)
+    return x
 
-    # Fully Connected Layer
-    x = k.layers.Dense(units=1000)(x)
-    x = k.layers.Activation("relu")(x)
+
+def vggnet_module(x, conv_filter, iterations):
+    for _ in range(iterations):
+        x = k.layers.Conv2D(filters=conv_filter, kernel_size=(3, 3), strides=(1, 1), padding="valid")(x)
+        x = k.layers.Activation("relu")(x)
+
+    x = k.layers.MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding="valid")(x)
+
+    return x
+
+
+def vggnet16(x):
+    x = k.layers.UpSampling2D(size=(3, 3))(x)
+
+    x = vggnet_module(x, 64, 2)
+    x = vggnet_module(x, 128, 2)
+    x = vggnet_module(x, 256, 2)
+    x = vggnet_module(x, 512, 3)
+    x = vggnet_module(x, 512, 3)
+
+    x = k.layers.Flatten()(x)
+
+    x = alexnet_output_module(x)
+
+    return x
+
+
+def vggnet19(x):
+    x = k.layers.UpSampling2D(size=(3, 3))(x)
+
+    x = vggnet_module(x, 64, 2)
+    x = vggnet_module(x, 128, 2)
+    x = vggnet_module(x, 256, 2)
+    x = vggnet_module(x, 512, 4)
+    x = vggnet_module(x, 512, 4)
+
+    x = k.layers.Flatten()(x)
+
+    x = alexnet_output_module(x)
 
     return x
 
@@ -252,7 +287,6 @@ def googlenet_output_module(x):
 
 
 def googlenet_input(x):
-    # Up Sampling
     x = k.layers.UpSampling2D(size=(2, 2))(x)
 
     x = k.layers.Conv2D(filters=64, kernel_size=(7, 7), strides=(2, 2), padding="same")(x)
@@ -309,125 +343,174 @@ def googlenet(x):
     return x, x_1, x_2
 
 
-def identity_block(X, f, filters, stage, block):
+def resnet_module(x, conv_filter_1, conv_filter_2, conv_kernal):
+    x = k.layers.Conv2D(filters=conv_filter_1,
+                        kernel_size=(conv_kernal, conv_kernal),
+                        strides=(1, 1),
+                        padding="same")(x)
+    x = k.layers.Activation("relu")(x)
 
-    # Defining name basis
-    conv_name_base = 'res' + str(stage) + block + '_branch'
-    bn_name_base = 'bn' + str(stage) + block + '_branch'
+    x = k.layers.Conv2D(filters=conv_filter_2, kernel_size=(1, 1), strides=(1, 1), padding="valid")(x)
 
-    # Retrieve Filters
-    F1, F2, F3 = filters
-
-    # Save the input value
-    X_shortcut = X
-
-    # First component of main path
-    X = k.layers.Conv2D(filters = F1, kernel_size = (1, 1), strides = (1,1), padding = 'valid', name =
-                        conv_name_base + '2a', kernel_initializer = k.initializers.glorot_uniform(seed=0))(X)
-    X = k.layers.BatchNormalization(axis = 3, name = bn_name_base + '2a')(X)
-    X = k.layers.Activation('relu')(X)
-
-    # Second component of main path
-    X = k.layers.Conv2D(filters = F2, kernel_size = (f, f), strides = (1, 1), padding = 'same', name =
-                        conv_name_base + '2b', kernel_initializer = k.initializers.glorot_uniform(seed=0))(X)
-    X = k.layers.BatchNormalization(axis = 3, name = bn_name_base + '2b')(X)
-    X = k.layers.Activation('relu')(X)
-
-    # Third component of main path
-    X = k.layers.Conv2D(filters=F3, kernel_size=(1, 1), strides=(1,1), padding='valid', name=
-                        conv_name_base + '2c', kernel_initializer=k.initializers.glorot_uniform(seed=0))(X)
-    X = k.layers.BatchNormalization(axis=3, name=bn_name_base + '2c')(X)
-
-    # Final step: Add shortcut value to main path, and pass it through a RELU activatin
-    X = k.layers.Add()([X, X_shortcut])
-    X = k.layers.Activation('relu')(X)
-
-    return X
+    return x
 
 
-def convolutional_block(X, f, filters, stage, block, s=2):
-    # Defining name basis
-    conv_name_base = 'res' + str(stage) + block + '_branch'
-    bn_name_base = 'bn' + str(stage) + block + '_branch'
+def resnet_conv_module(x, conv_filter_1, conv_filter_2, conv_filter_3, conv_kernal, conv_stride):
+    x_shortcut = x
 
-    # Retrieve Filters
-    F1, F2, F3 = filters
+    x = k.layers.Conv2D(filters=conv_filter_1,
+                        kernel_size=(1, 1),
+                        strides=(conv_stride, conv_stride),
+                        padding="valid")(x)
+    x = k.layers.Activation("relu")(x)
 
-    # Save the input value
-    X_shortcut = X
+    x = resnet_module(x, conv_filter_2, conv_filter_3, conv_kernal)
 
-    ##### MAIN PATH #####
-    # First component of main path
-    X = k.layers.Conv2D(filters=F1, kernel_size=(1, 1), strides=(s, s), padding='valid', name=conv_name_base +
-'2a', kernel_initializer=k.initializers.glorot_uniform(seed=0))(X)
-    X = k.layers.BatchNormalization(axis=3, name=bn_name_base + '2a')(X)
-    X = k.layers.Activation('relu')(X)
+    x_shortcut = k.layers.Conv2D(filters=conv_filter_3,
+                                 kernel_size=(1, 1),
+                                 strides=(conv_stride, conv_stride),
+                                 padding="valid")(x_shortcut)
 
-    # Second component of main path
-    X = k.layers.Conv2D(filters=F2, kernel_size=(f, f), strides=(1, 1), padding='same', name=conv_name_base +
-'2b', kernel_initializer=k.initializers.glorot_uniform(seed=0))(X)
-    X = k.layers.BatchNormalization(axis=3, name=bn_name_base + '2b')(X)
-    X = k.layers.Activation('relu')(X)
+    x = k.layers.Add()([x, x_shortcut])
+    x = k.layers.Activation("relu")(x)
 
-    # Third component of main path
-    X = k.layers.Conv2D(filters=F3, kernel_size=(1, 1), strides=(1, 1), padding='valid', name=conv_name_base +
-'2c', kernel_initializer=k.initializers.glorot_uniform(seed=0))(X)
-    X = k.layers.BatchNormalization(axis=3, name=bn_name_base + '2c')(X)
+    return x
 
-    ##### SHORTCUT PATH #####
-    X_shortcut = k.layers.Conv2D(filters=F3, kernel_size=(1, 1), strides=(s, s), padding='valid',
-name=conv_name_base + '1', kernel_initializer=k.initializers.glorot_uniform(seed=0))(X_shortcut)
-    X_shortcut = k.layers.BatchNormalization(axis=3, name=bn_name_base + '1')(X_shortcut)
 
-    # Final step: Add shortcut value to main path, and pass it through a RELU activatin
-    X = k.layers.Add()([X, X_shortcut])
-    X = k.layers.Activation('relu')(X)
+def resnet_identity_module(x, conv_filter_1, conv_filter_2, conv_filter_3, conv_kernal):
+    x_shortcut = x
 
-    return X
+    x = k.layers.Conv2D(filters=conv_filter_1, kernel_size=(1, 1), strides=(1, 1), padding="valid",)(x)
+    x = k.layers.Activation("relu")(x)
+
+    x = resnet_module(x, conv_filter_2, conv_filter_3, conv_kernal)
+
+    x = k.layers.Add()([x, x_shortcut])
+    x = k.layers.Activation("relu")(x)
+
+    return x
 
 
 def resnet(x):
-    # Zero-Padding
-    X = k.layers.ZeroPadding2D((3, 3))(x)
+    x = k.layers.Conv2D(filters=64, kernel_size=(7, 7), strides=(2, 2), padding="same")(x)
+    x = k.layers.Activation("relu")(x)
 
-    # Stage 1
-    X = k.layers.Conv2D(64, (7, 7), strides=(2, 2), name='conv1',
-                        kernel_initializer=k.initializers.glorot_uniform(seed=0))(X)
-    X = k.layers.BatchNormalization(axis=3, name='bn_conv1')(X)
-    X = k.layers.Activation('relu')(X)
-    X = k.layers.MaxPooling2D((3, 3), strides=(2, 2))(X)
+    x = k.layers.MaxPooling2D(pool_size=(3, 3), strides=(2, 2), padding="same")(x)
 
-    # Stage 2
-    X = convolutional_block(X, f=3, filters=[64, 64, 256], stage=2, block='a', s=1)
-    X = identity_block(X, 3, [64, 64, 256], stage=2, block='b')
-    X = identity_block(X, 3, [64, 64, 256], stage=2, block='c')
+    x = resnet_conv_module(x, 64, 64, 256, 3, 1)
 
-    # Stage 3
-    X = convolutional_block(X, f=3, filters=[128, 128, 512], stage=3, block='a', s=2)
-    X = identity_block(X, 3, [128, 128, 512], stage=3, block='b')
-    X = identity_block(X, 3, [128, 128, 512], stage=3, block='c')
-    X = identity_block(X, 3, [128, 128, 512], stage=3, block='d')
+    for _ in range(2):
+        x = resnet_identity_module(x, 64, 64, 256, 3)
 
-    # Stage 4
-    X = convolutional_block(X, f=3, filters=[256, 256, 1024], stage=4, block='a', s=2)
-    X = identity_block(X, 3, [256, 256, 1024], stage=4, block='b')
-    X = identity_block(X, 3, [256, 256, 1024], stage=4, block='c')
-    X = identity_block(X, 3, [256, 256, 1024], stage=4, block='d')
-    X = identity_block(X, 3, [256, 256, 1024], stage=4, block='e')
-    X = identity_block(X, 3, [256, 256, 1024], stage=4, block='f')
+    x = resnet_conv_module(x, 128, 128, 512, 3, 2)
 
-    # Stage 5
-    X = convolutional_block(X, f=3, filters=[512, 512, 2048], stage=5, block='a', s=2)
-    X = identity_block(X, 3, [512, 512, 2048], stage=5, block='b')
-    X = identity_block(X, 3, [512, 512, 2048], stage=5, block='c')
+    for _ in range(3):
+        x = resnet_identity_module(x, 128, 128, 512, 3)
 
-    # AVGPOOL
-    X = k.layers.AveragePooling2D(pool_size=(2, 2), padding='same')(X)
+    x = resnet_conv_module(x, 256, 256, 1024, 3, 2)
 
-    # Output layer
-    X = k.layers.Flatten()(X)
+    for _ in range(5):
+        x = resnet_identity_module(x, 256, 256, 1024, 3)
 
-    return X
+    x = resnet_conv_module(x, 512, 512, 2048, 3, 2)
+
+    for _ in range(2):
+        x = resnet_identity_module(x, 512, 512, 2048, 3)
+
+    x = k.layers.AveragePooling2D(pool_size=(2, 2), strides=(1, 1), padding="same")(x)
+
+    x = k.layers.Flatten()(x)
+
+    return x
+
+
+def alexinceptionresnet_module_module_bottleneck(x, conv_filter_bottleneck):
+    x = k.layers.Conv2D(filters=conv_filter_bottleneck, kernel_size=(1, 1), strides=(1, 1), padding="same")(x)
+    x = k.layers.Activation("relu")(x)
+
+    return x
+
+
+def alexinceptionresnet_module_module_module(x, conv_filter, conv_filter_bottleneck, iterations):
+    x_shortcut = x
+
+    x = k.layers.Conv2D(filters=int(conv_filter / 2), kernel_size=(1, 1), strides=(1, 1), padding="same")(x)
+    x = k.layers.Activation("relu")(x)
+
+    for _ in range(iterations):
+        x = k.layers.Conv2D(filters=conv_filter, kernel_size=(3, 3), strides=(1, 1), padding="same")(x)
+        x = k.layers.Activation("relu")(x)
+
+    x = k.layers.Conv2D(filters=int(conv_filter / 2), kernel_size=(1, 1), strides=(1, 1), padding="same")(x)
+    x = k.layers.Activation("relu")(x)
+
+    x = alexinceptionresnet_module_module_bottleneck(x, conv_filter_bottleneck)
+
+    x = k.layers.Add()([x, x_shortcut])
+
+    return x
+
+
+def alexinceptionresnet_module_module(x,
+                                      conv_filter_1,
+                                      conv_filter_2,
+                                      conv_filter_3,
+                                      conv_filter_bottleneck):
+    x_shortcut = x
+
+    x_1 = alexinceptionresnet_module_module_module(x, conv_filter_1, conv_filter_bottleneck, 0)
+    x_2 = alexinceptionresnet_module_module_module(x, conv_filter_1, conv_filter_bottleneck, 1)
+    x_3 = alexinceptionresnet_module_module_module(x, conv_filter_2, conv_filter_bottleneck, 2)
+    x_4 = alexinceptionresnet_module_module_module(x, conv_filter_3, conv_filter_bottleneck, 3)
+
+    x_5 = alexinceptionresnet_module_module_bottleneck(x, conv_filter_bottleneck)
+    x_5 = k.layers.MaxPooling2D(pool_size=(3, 3), strides=(1, 1), padding="same")(x_5)
+    x_5 = alexinceptionresnet_module_module_bottleneck(x_5, conv_filter_bottleneck)
+
+    x = k.layers.Concatenate(axis=3)([x_1, x_2, x_3, x_4, x_5])
+
+    x = alexinceptionresnet_module_module_bottleneck(x, conv_filter_bottleneck)
+
+    x = k.layers.Add()([x, x_shortcut])
+
+    return x
+
+
+def alexinceptionresnet_module(x):
+    x = alexinceptionresnet_module_module(x, 8, 16, 32, 64)
+
+    #for _ in range(1):
+        #x = alexinceptionresnet_module_module(x, 16, 32, 64, 64)
+
+    #for _ in range(1):
+        #x = alexinceptionresnet_module_module(x, 32, 64, 128, 64)
+
+    #for _ in range(1):
+        #x = alexinceptionresnet_module_module(x, 64, 128, 256, 64)
+
+    return x
+
+
+def alexinceptionresnet(x):
+    x = k.layers.UpSampling2D(size=(1, 1))(x)
+
+    for _ in range(3):
+        x = k.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=(2, 2), padding="same")(x)
+        x = k.layers.Activation("relu")(x)
+
+    x = k.layers.AveragePooling2D(pool_size=(3, 3), strides=(1, 1), padding="same")(x)
+
+    x_1 = alexinceptionresnet_module(x)
+    x_2 = alexinceptionresnet_module(x)
+
+    x = k.layers.Add()([x_1, x_2])
+    x = k.layers.Activation("relu")(x)
+
+    x = k.layers.AveragePooling2D(pool_size=(3, 3), strides=(1, 1), padding="same")(x)
+
+    x = k.layers.Flatten()(x)
+
+    return x
 
 
 def fit_model(input_model, test_bool, save_bool, load_bool, apply_bool, input_path, input_prefix, output_path, epochs):
@@ -455,7 +538,7 @@ def fit_model(input_model, test_bool, save_bool, load_bool, apply_bool, input_pa
 
             input_x = k.layers.Input(x_train.shape[1:])
 
-            x = resnet(input_x)
+            x = alexinceptionresnet(input_x)
 
             x = output_module(x)
 
