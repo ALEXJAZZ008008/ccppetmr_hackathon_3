@@ -121,3 +121,4 @@ training_data/
 *.h5
 
 *.csv
+*.png
