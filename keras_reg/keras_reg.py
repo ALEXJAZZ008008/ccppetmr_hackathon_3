@@ -100,12 +100,16 @@ def get_y(input_path):
 
 
 def perceptron(x):
+    x = k.layers.UpSampling2D(size=(1, 1))(x)
+
     x = k.layers.Flatten()(x)
 
     return x
 
 
 def fully_connected(x):
+    x = k.layers.UpSampling2D(size=(1, 1))(x)
+
     x = k.layers.Flatten()(x)
 
     x = k.layers.Dense(units=256)(x)
@@ -115,6 +119,8 @@ def fully_connected(x):
 
 
 def deep_fully_connected(x):
+    x = k.layers.UpSampling2D(size=(1, 1))(x)
+
     x = k.layers.Flatten()(x)
 
     for _ in range(2):
@@ -125,6 +131,8 @@ def deep_fully_connected(x):
 
 
 def papernet(x):
+    x = k.layers.UpSampling2D(size=(1, 1))(x)
+
     for _ in range(4):
         x = k.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=(1, 1), padding="same")(x)
         x = k.layers.Activation("relu")(x)
@@ -287,8 +295,6 @@ def googlenet_output_module(x):
 
 
 def googlenet_input(x):
-    x = k.layers.UpSampling2D(size=(2, 2))(x)
-
     x = k.layers.Conv2D(filters=64, kernel_size=(7, 7), strides=(2, 2), padding="same")(x)
     x = k.layers.Activation("relu")(x)
 
@@ -313,6 +319,8 @@ def googlenet_input(x):
 
 
 def shallow_googlenet(x):
+    x = k.layers.UpSampling2D(size=(2, 2))(x)
+
     x = googlenet_input(x)
 
     x = googlenet_output_module(x)
@@ -321,6 +329,8 @@ def shallow_googlenet(x):
 
 
 def googlenet(x):
+    x = k.layers.UpSampling2D(size=(2, 2))(x)
+
     x = googlenet_input(x)
 
     x_1 = googlenet_output_module(x)
@@ -392,6 +402,8 @@ def resnet_identity_module(x, conv_filter_1, conv_filter_2, conv_filter_3, conv_
 
 
 def resnet(x):
+    x = k.layers.UpSampling2D(size=(1, 1))(x)
+
     x = k.layers.Conv2D(filters=64, kernel_size=(7, 7), strides=(2, 2), padding="same")(x)
     x = k.layers.Activation("relu")(x)
 
@@ -447,6 +459,7 @@ def alexinceptionresnet_module_module_module(x, conv_filter, conv_filter_bottlen
     x = alexinceptionresnet_module_module_bottleneck(x, conv_filter_bottleneck)
 
     x = k.layers.Add()([x, x_shortcut])
+    x = k.layers.Activation("relu")(x)
 
     return x
 
@@ -464,7 +477,7 @@ def alexinceptionresnet_module_module(x,
     x_4 = alexinceptionresnet_module_module_module(x, conv_filter_3, conv_filter_bottleneck, 3)
 
     x_5 = alexinceptionresnet_module_module_bottleneck(x, conv_filter_bottleneck)
-    x_5 = k.layers.MaxPooling2D(pool_size=(3, 3), strides=(1, 1), padding="same")(x_5)
+    x_5 = k.layers.AveragePooling2D(pool_size=(3, 3), strides=(1, 1), padding="same")(x_5)
     x_5 = alexinceptionresnet_module_module_bottleneck(x_5, conv_filter_bottleneck)
 
     x = k.layers.Concatenate(axis=3)([x_1, x_2, x_3, x_4, x_5])
@@ -472,21 +485,26 @@ def alexinceptionresnet_module_module(x,
     x = alexinceptionresnet_module_module_bottleneck(x, conv_filter_bottleneck)
 
     x = k.layers.Add()([x, x_shortcut])
+    x = k.layers.Activation("relu")(x)
 
     return x
 
 
 def alexinceptionresnet_module(x):
-    x = alexinceptionresnet_module_module(x, 8, 16, 32, 64)
+    for _ in range(1):
+        x = alexinceptionresnet_module_module(x, 4, 8, 16, 64)
 
-    #for _ in range(1):
-        #x = alexinceptionresnet_module_module(x, 16, 32, 64, 64)
+    for _ in range(1):
+        x = alexinceptionresnet_module_module(x, 8, 16, 32, 64)
 
-    #for _ in range(1):
-        #x = alexinceptionresnet_module_module(x, 32, 64, 128, 64)
+    for _ in range(1):
+        x = alexinceptionresnet_module_module(x, 16, 32, 64, 64)
 
-    #for _ in range(1):
-        #x = alexinceptionresnet_module_module(x, 64, 128, 256, 64)
+    for _ in range(1):
+        x = alexinceptionresnet_module_module(x, 32, 64, 128, 64)
+
+    for _ in range(0):
+        x = alexinceptionresnet_module_module(x, 64, 128, 256, 64)
 
     return x
 
@@ -551,6 +569,7 @@ def fit_model(input_model, test_bool, save_bool, load_bool, apply_bool, input_pa
         model = input_model
 
     model.summary()
+    k.utils.plot_model(model, output_path + "model.png")
 
     print("Fitting model")
 
@@ -646,7 +665,7 @@ if __name__ == "__main__":
 
             while_model = fit_model(while_model,
                                     False,
-                                    False,
+                                    True,
                                     while_bool,
                                     True,
                                     "../training_data/",
