@@ -43,6 +43,50 @@ def deep_fully_connected(x):
     return x
 
 
+def conv(x):
+    x = k.layers.UpSampling2D(size=(1, 1))(x)
+
+    x = k.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=(1, 1), padding="same")(x)
+    x = k.layers.Dropout(0.25)(x)
+    x = k.layers.Activation("relu")(x)
+
+    x = k.layers.AveragePooling2D(pool_size=(2, 2), strides=(1, 1), padding="same")(x)
+
+    x = k.layers.Flatten()(x)
+
+    return x
+
+
+def deep_conv(x):
+    x = k.layers.UpSampling2D(size=(1, 1))(x)
+
+    for _ in range(2):
+        x = k.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=(1, 1), padding="same")(x)
+        x = k.layers.Dropout(0.25)(x)
+        x = k.layers.Activation("relu")(x)
+
+        x = k.layers.AveragePooling2D(pool_size=(2, 2), strides=(1, 1), padding="same")(x)
+
+    x = k.layers.Flatten()(x)
+
+    return x
+
+
+def conv_fully_connected(x):
+    x = k.layers.UpSampling2D(size=(1, 1))(x)
+
+    for _ in range(2):
+        x = k.layers.Conv2D(filters=64, kernel_size=(3, 3), strides=(1, 1), padding="same")(x)
+        x = k.layers.Dropout(0.25)(x)
+        x = k.layers.Activation("relu")(x)
+
+        x = k.layers.AveragePooling2D(pool_size=(2, 2), strides=(1, 1), padding="same")(x)
+
+    x = deep_fully_connected(x)
+
+    return x
+
+
 def papernet(x):
     x = k.layers.UpSampling2D(size=(1, 1))(x)
 
