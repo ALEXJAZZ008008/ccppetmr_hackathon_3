@@ -127,7 +127,7 @@ def fit_model(input_model, test_bool, save_bool, load_bool, apply_bool, input_pa
 
             input_x = k.layers.Input(x_train.shape[1:])
 
-            x = network.alex_unet(input_x)
+            x = network_regularisation.resvoxelmorph(input_x)
 
             x = network.output_module(x)
 
@@ -240,7 +240,7 @@ def main(fit_model_bool, while_bool):
                                     "../training_data/",
                                     ".nii",
                                     "../results/",
-                                    100)
+                                    10)
 
             if not while_bool:
                 break
