@@ -6,7 +6,6 @@ import numpy as np
 import sirf.STIR as PET
 
 import network
-import network_regularisation
 
 
 # https://stackoverflow.com/questions/5967500/how-to-correctly-sort-a-string-with-a-number-inside
@@ -127,7 +126,7 @@ def fit_model(input_model, test_bool, save_bool, load_bool, apply_bool, input_pa
 
             input_x = k.layers.Input(x_train.shape[1:])
 
-            x = network_regularisation.resvoxelmorph(input_x)
+            x = network.vgg19net(input_x)
 
             x = network.output_module(x)
 
